@@ -1,7 +1,7 @@
 #include <bits/stdc++.h>
 #include <openssl/bn.h>
 #include <openssl/md5.h>
-
+#include <fstream>
 #include "leveldb/db.h"
 
 int FPSIZE = 6;
@@ -11,6 +11,18 @@ using namespace std;
 uint64_t insertSFDB(string size, string chunkHash);
 uint64_t insertFCDB(string chunkHash);
 
+
+
+struct typeNode {
+    string type;
+    uint64_t count = 0;
+    friend bool operator < (struct typeNode const &a,struct typeNode const &b) {  
+        if (a.type == b.type) {  
+            return false;  
+        }       
+    }  
+};
+set<typeNode> typeSet;
 // data counter--------------------
 
 uint64_t totalLogicChunkNumber = 0;
@@ -34,13 +46,58 @@ int initDB(char *db1, char *db2) {
     assert(SFdb != NULL);
 }
 
-int readInChunks(FILE *fp) {
+int readInChunks(FILE *fp, FILE *typeFp) {
 
 	char read_buffer[256];
+    char typeBuffer[256];
+    char typeNumBuffer[256];
 	char *item;
-
+    
 	fgets(read_buffer, 256, fp);// skip title line
-	while (fgets(read_buffer, 256, fp)) {
+
+    while (fgets(typeBuffer,256,typeFp)) {
+
+
+        fgets(typeNumBuffer, 256, typeFp);
+        char *tmp;
+        tmp = strtok(typeBuffer, ":\t\n ");
+        uint64_t chunkNumber = atoi((const char*)tmp);
+        
+        for (uint64_t i = 0; i < chunkNumber; i++) {
+            
+            fgets(read_buffer, 256, fp);
+            totalLogicChunkNumber++;
+		    //cout<<totalLogicChunkNumber<<endl;
+		    char hash[FPSIZE];
+		    memset(hash, 0, FPSIZE);
+		    item = strtok(read_buffer, ":\t\n ");
+		    int index = 0;
+	    	while (item != NULL && index < FPSIZE){
+			    hash[index++] = strtol(item, NULL, 16);
+			    item = strtok(NULL, ":\t\n");
+		    }
+
+            char typeHash[FPSIZE];
+   		    unsigned char md5full[64];
+    	    MD5((unsigned char*)typeBuffer, FPSIZE, md5full);
+    	    memcpy(typpeHash, md5full, FPSIZE);
+
+
+
+
+
+
+		    string chunkHash(hash,FPSIZE);
+		    uint64_t size = atoi((const char*)item);   //string-->int
+		    string sizeStr = to_string(size);
+		    if (insertFCDB(chunkHash) == 1) {
+			    insertSFDB(sizeStr, chunkHash);
+		    }
+        }
+
+
+
+        while (fgets(read_buffer, 256, fp)) {
 		
 		totalLogicChunkNumber++;
 		//cout<<totalLogicChunkNumber<<endl;
@@ -59,6 +116,8 @@ int readInChunks(FILE *fp) {
 			insertSFDB(sizeStr, chunkHash);
 		}
 	}
+    }
+	
 }
 
 
@@ -66,7 +125,7 @@ int insertFCDB(string key) {
 
 	string exs="";
 	uint64_t count;
-    leveldb::Status status = MFCdb->Get(leveldb::ReadOptions(),key,&exs);
+    leveldb::Status status = FCdb->Get(leveldb::ReadOptions(),key,&exs);
     if (status.ok() == 0) {
 		count = 1;
 		string countInsert = "1";
