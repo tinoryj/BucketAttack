@@ -62,10 +62,23 @@ int readInChunks(FILE *fp, FILE *typeFp) {
         char *tmp;
         tmp = strtok(typeBuffer, ":\t\n ");
         uint64_t chunkNumber = atoi((const char*)tmp);
-        
+        string typeName(typeBuffer);  
+		
+		typeNode newNode;
+		newNode.type = chunkNumber;
+
+		set<typeNode>::iterator it;
+        it = typeSet.find(newNode);  
+
+        if(it == typeSet.end()) {
+			typeSet.insert(newNode);
+		}   
+		else {
+			it.count += chunkNumber;
+		}
         for (uint64_t i = 0; i < chunkNumber; i++) {
             
-            fgets(read_buffer, 256, fp);
+			fgets(read_buffer, 256, fp);
             totalLogicChunkNumber++;
 		    //cout<<totalLogicChunkNumber<<endl;
 		    char hash[FPSIZE];
@@ -82,42 +95,16 @@ int readInChunks(FILE *fp, FILE *typeFp) {
     	    MD5((unsigned char*)typeBuffer, FPSIZE, md5full);
     	    memcpy(typpeHash, md5full, FPSIZE);
 
-
-
-
-
-
 		    string chunkHash(hash,FPSIZE);
+            string inputHash = chunkHash + typeHash;
+
 		    uint64_t size = atoi((const char*)item);   //string-->int
 		    string sizeStr = to_string(size);
-		    if (insertFCDB(chunkHash) == 1) {
+		    if (insertFCDB(inputHash) == 1) {
 			    insertSFDB(sizeStr, chunkHash);
 		    }
         }
-
-
-
-        while (fgets(read_buffer, 256, fp)) {
-		
-		totalLogicChunkNumber++;
-		//cout<<totalLogicChunkNumber<<endl;
-		char hash[FPSIZE];
-		memset(hash, 0, FPSIZE);
-		item = strtok(read_buffer, ":\t\n ");
-		int index = 0;
-		while (item != NULL && index < FPSIZE){
-			hash[index++] = strtol(item, NULL, 16);
-			item = strtok(NULL, ":\t\n");
-		}
-		string chunkHash(hash,FPSIZE);
-		uint64_t size = atoi((const char*)item);   //string-->int
-		string sizeStr = to_string(size);
-		if (insertFCDB(chunkHash) == 1) {
-			insertSFDB(sizeStr, chunkHash);
-		}
-	}
     }
-	
 }
 
 
@@ -144,27 +131,19 @@ int insertFCDB(string key) {
 int insertSFDB(string size, string key) {
 
 	string exs="";
-    leveldb::Status status = MSFdb->Get(leveldb::ReadOptions(),size,&exs);
+    leveldb::Status status = SFdb->Get(leveldb::ReadOptions(),size,&exs);
     if (status.ok() == 0) {
 
-        status = MSFdb->Put(leveldb::WriteOptions(),size,key); 
+        status = SFdb->Put(leveldb::WriteOptions(),size,key); 
 		return 1;
     }
 	else {
-		/*
-		uint64_t len = exs.length();
-		for (uint64_t i = 0; i < len; i += FPSIZE) {
-			if (memcmp(key.c_str(), exs.c_str()+i, FPSIZE) == 0) {
-				return -2;
-			}
-		}
-		*/
 		string insertKey = exs + key;
 		if (insertKey.size() % 6 != 0) {
 			cout<<"insert key error"<<endl;
 			exit(0);
 		}
-		status = MSFdb->Put(leveldb::WriteOptions(), size, insertKey);
+		status = SFdb->Put(leveldb::WriteOptions(), size, insertKey);
 		return -1; 
 	}
 }
@@ -172,19 +151,17 @@ int insertSFDB(string size, string key) {
 
 int main (int argc, char *argv[]){
 
-	assert(argc >= 5); 
-	//filename type(0-C/1-M) CFCdb CSFdb MFCdb MSFdb
+	assert(argc >= 4); 
+	//filename CFCdb CSFdb MFCdb MSFdb
 
-	int type = atoi((const char*)argv[2]);
-	if(type == 0){
-		initDB_C(argv[3], argv[4]);
-	}
-	else
-		initDB_M(argv[3], argv[4]);
+	initDB(argv[3], argv[4]);
 	FILE *fp = NULL;
+    FILE *typeFp = NULL;
 	fp = fopen(argv[1], "r");
+    typeFp = fopen(argv[2],"r");
+    assert(typeFp != NULL);
 	assert(fp != NULL);
-	readInChunks(fp,type);
+	readInChunks(fp);
 	cout<<"totalLogicChunkNumber "<<totalLogicChunkNumber<<endl;
 
 	return 0;
