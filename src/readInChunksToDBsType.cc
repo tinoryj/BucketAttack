@@ -8,7 +8,7 @@ int FPSIZE = 6;
  
 using namespace std;
 
-int insertTypeDB(string typeName, int chunkNum);
+int insertTypeDB(string typeName, uint64_t chunkNum);
 int insertSFDB(string size, string chunkHash);
 int insertFCDB(string chunkHash);
 
@@ -49,13 +49,15 @@ int readInChunks(FILE *fp, FILE *typeFp) {
 	char *item;
     
 	fgets(read_buffer, 256, fp);// skip title line
-    while (fgets(typeBuffer,256,typeFp)) {
+    int cnt = 2000;
+    while (fgets(typeBuffer,256,typeFp) && cnt--) {
 
+        cout<<cnt<<endl;
 
         fgets(typeNumBuffer, 256, typeFp);
         char *tmp;
         tmp = strtok(typeNumBuffer, ":\t\n ");
-        int chunkNumber = atoi((const char*)tmp);
+        uint64_t chunkNumber = atoi((const char*)tmp);
         //cout<<chunkNumber<<endl;
         string typeName(typeBuffer);  
 		cout<<typeName<<" "<<chunkNumber<<endl;
@@ -63,8 +65,10 @@ int readInChunks(FILE *fp, FILE *typeFp) {
    		unsigned char md5full[64];
     	MD5((unsigned char*)typeBuffer, FPSIZE, md5full);
     	memcpy(typeHash, md5full, FPSIZE);
-        string typeHashStr(typeHash);
-		insertTypeDB(typeHashStr, chunkNumber);
+        string typeHashStr(typeHash,FPSIZE);
+        if (typeHashStr.length() != 6) 
+            cout<<"error"<<endl;
+		insertTypeDB(typeName, chunkNumber);
         for (uint64_t i = 0; i < chunkNumber; i++) {
             
 			fgets(read_buffer, 256, fp);
@@ -112,10 +116,10 @@ int insertFCDB(string key) {
 	}
 }
 
-int insertTypeDB(string typeName, int chunkNum) {
+int insertTypeDB(string typeName, uint64_t chunkNum) {
 
 	string exs="";
-	int count;
+	uint64_t count;
     leveldb::Status status = Tdb->Get(leveldb::ReadOptions(),typeName,&exs);
     if (status.ok() == 0) {
 		string countInsert = to_string(chunkNum);

@@ -66,6 +66,7 @@ void CFC() {
     assert(it->status().ok());
     delete it;
 }
+/*
 void type() {
 
     freopen("type.txt", "w", stdout);
@@ -76,6 +77,18 @@ void type() {
         sprintf(mk1,"%02x:%02x:%02x:%02x:%02x:%02x\t",mKey[0]&0xFF,mKey[1]&0xFF,mKey[2]&0xFF,mKey[3]&0xFF,mKey[4]&0xFF,mKey[5]&0xFF);
         cout<<mk1<<"\t";
 		cout<<it->value().ToString()<<endl;
+    }
+    assert(it->status().ok());
+    delete it;
+}
+*/
+void type() {
+
+    freopen("type.txt", "w", stdout);
+    leveldb::Iterator* it = Tdb->NewIterator(leveldb::ReadOptions());
+    for (it->SeekToFirst(); it->Valid(); it->Next()){
+        //string mKey = it->key().ToString();
+        cout<<it->key().ToString()<<"\t"<<it->value().ToString()<<endl;
     }
     assert(it->status().ok());
     delete it;

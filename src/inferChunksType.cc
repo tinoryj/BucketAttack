@@ -10,7 +10,6 @@ using namespace std;
 
 struct FC {
 	string key;
-    string type;
 	uint64_t count = 0;
 };
 struct cmp {
@@ -54,7 +53,17 @@ void initDB(char *db1, char *db2, char *db3, char *db4){
 }
 
 
-void inferTest() {
+void inferTest(char *input) {
+
+    string typeSearch(input);
+    char typeHash[FPSIZE];
+   	unsigned char md5full[64];
+    MD5((unsigned char*)typeSearch.c_str(), FPSIZE, md5full);
+    memcpy(typeHash, md5full, FPSIZE);
+    string typeHashStr(typeHash,FPSIZE);
+
+    if (typeHashStr.length() != 6) 
+        cout<<"error"<<endl;
 
 	string currentSzie;
     leveldb::Iterator* it = CSFdb->NewIterator(leveldb::ReadOptions());
@@ -75,22 +84,40 @@ void inferTest() {
 		for (uint64_t i = 0; i < cFpNum; i += FPSIZE) {
 			FC newFC;
 			string key = cTempFpSet.substr(i,FPSIZE);
+            key = key + typeHashStr;
+            if (key.length() != 12) { 
+                cout<<"error"<<endl;
+                exit(0);
+            }
 			newFC.key = key;
 			string count;
 			leveldb::Status s = CFCdb->Get(leveldb::ReadOptions(), key, &count);
-			assert(s.ok());
-			newFC.count = atoi((const char*)count.c_str());
-			cQue.push(newFC);
+            if (s.ok() == 0) {
+                continue;
+            }
+            else {
+                newFC.count = atoi((const char*)count.c_str());
+			    cQue.push(newFC);
+            }
 		}
 		for (uint64_t i = 0; i < mFpNum; i += FPSIZE) {
 			FC newFC;
 			string key = mTempFpSet.substr(i,FPSIZE);
+            key = key + typeHashStr;
+            if (key.length() != 12) { 
+                cout<<"error"<<endl;
+                exit(0);
+            }
 			newFC.key = key;
 			string count;
 			leveldb::Status s = MFCdb->Get(leveldb::ReadOptions(), key, &count);
-			assert(s.ok());
-			newFC.count = atoi((const char*)count.c_str());
-			mQue.push(newFC);
+            if (s.ok() == 0) {
+                continue;
+            }
+            else {
+			    newFC.count = atoi((const char*)count.c_str());
+			    mQue.push(newFC);
+            }
 		}
 		
 		uint64_t inferSize;
@@ -98,26 +125,42 @@ void inferTest() {
 			inferSize = mQue.size();
 		else 
 			inferSize = cQue.size();
+        //cout<<inferSize<<endl;
 		for (uint64_t i = 0; i < inferSize; i++) {
 			
 			uniqueInferChunkNumber++;
+
+		    char hash2[FPSIZE];
+   		    unsigned char md5full[64];
+    	    MD5((unsigned char*)mQue.top().key.c_str(), FPSIZE, md5full);
+    	    memcpy(hash2,md5full,FPSIZE);
+
+		    string mKey(hash2, FPSIZE); //get key
+
+
 			char hash2[FPSIZE];
-   			unsigned char md5full[64];
-    		MD5((unsigned char*)mQue.top().key.c_str(), FPSIZE,md5full);
+            string calHash = mQue.top().key.substr(0,FPSIZE);
+            unsigned char md5full[64];
+    		MD5((unsigned char*)calHash.c_str(), FPSIZE,md5full);
     		memcpy(hash2,md5full,FPSIZE);
 
 			string mKey(hash2, FPSIZE); //get key
-			/*
-			char mk1[256];
+
+            /*
+            char mk1[256];
         	sprintf(mk1,"%02x:%02x:%02x:%02x:%02x:%02x\t",mKey[0]&0xFF,mKey[1]&0xFF,mKey[2]&0xFF,mKey[3]&0xFF,mKey[4]&0xFF,mKey[5]&0xFF);
 			char mk2[256];
         	sprintf(mk2,"%02x:%02x:%02x:%02x:%02x:%02x\t",mQue.top().key[0]&0xFF,mQue.top().key[1]&0xFF,mQue.top().key[2]&0xFF,mQue.top().key[3]&0xFF,mQue.top().key[4]&0xFF,mQue.top().key[5]&0xFF);
 			char mk3[256];
         	sprintf(mk3,"%02x:%02x:%02x:%02x:%02x:%02x\t",cQue.top().key[0]&0xFF,cQue.top().key[1]&0xFF,cQue.top().key[2]&0xFF,cQue.top().key[3]&0xFF,cQue.top().key[4]&0xFF,cQue.top().key[5]&0xFF);
 			cout<<mk1<<" "<<mk2<<"\t"<<mk3<<endl;
-			*/
-			if (memcmp(mKey.c_str(), cQue.top().key.c_str(), FPSIZE) == 0) {
-			//if (mKey == mQue.top().key) {
+            */
+
+
+
+            string cData = cQue.top().key.substr(0,FPSIZE);
+
+			if (memcmp(mKey.c_str(), cData.c_str(), FPSIZE) == 0) {
 				rawInferChunkNumber += cQue.top().count;
 				correctInferChunkNumber++;
 			}
@@ -131,10 +174,10 @@ void inferTest() {
 
 int main (int argc, char *argv[]){
 
-	assert(argc>=5);
+	//assert(argc>=6);
 
 	initDB(argv[1], argv[2], argv[3], argv[4]);
-	inferTest();
+	inferTest(argv[5]);
 
 	cout<<"rawinferchunknumber "<<rawInferChunkNumber<<endl;
 	cout<<"uniqueinferchunknumber "<<uniqueInferChunkNumber<<endl;
