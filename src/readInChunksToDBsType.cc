@@ -8,18 +8,19 @@ int FPSIZE = 6;
  
 using namespace std;
 
-uint64_t insertSFDB(string size, string chunkHash);
-uint64_t insertFCDB(string chunkHash);
-
-
+int insertSFDB(string size, string chunkHash);
+int insertFCDB(string chunkHash);
 
 struct typeNode {
     string type;
     uint64_t count = 0;
-    friend bool operator < (struct typeNode const &a,struct typeNode const &b) {  
-        if (a.type == b.type) {  
+    friend bool operator () (struct typeNode const &a,struct typeNode const &b) {  
+        if (strcmp(a.type.c_str(),b.type.c_str()) == 0) {  
             return false;  
         }       
+        else {
+            return a > b;      //降序    
+        }
     }  
 };
 set<typeNode> typeSet;
@@ -54,28 +55,37 @@ int readInChunks(FILE *fp, FILE *typeFp) {
 	char *item;
     
 	fgets(read_buffer, 256, fp);// skip title line
-
+    int cnt = 0;
     while (fgets(typeBuffer,256,typeFp)) {
 
+        cnt++;
+        cout<<cnt<<endl;
 
         fgets(typeNumBuffer, 256, typeFp);
         char *tmp;
-        tmp = strtok(typeBuffer, ":\t\n ");
+        tmp = strtok(typeNumBuffer, ":\t\n ");
         uint64_t chunkNumber = atoi((const char*)tmp);
+        //cout<<chunkNumber<<endl;
         string typeName(typeBuffer);  
 		
 		typeNode newNode;
-		newNode.type = chunkNumber;
+        newNode.type = typeName;
+		newNode.count = chunkNumber;
 
 		set<typeNode>::iterator it;
         it = typeSet.find(newNode);  
 
-        if(it == typeSet.end()) {
+        if(it-- == typeSet.end()) {
 			typeSet.insert(newNode);
 		}   
 		else {
-			it.count += chunkNumber;
+            cout<<it->type<<"  "<<it->count<<endl;
+            newNode.count = chunkNumber + it->count;
+            typeSet.insert(newNode);
+            //cout<<newNode.count<<endl;
+            //exit(0);
 		}
+        cout<<typeSet.size()<<endl;
         for (uint64_t i = 0; i < chunkNumber; i++) {
             
 			fgets(read_buffer, 256, fp);
@@ -93,7 +103,7 @@ int readInChunks(FILE *fp, FILE *typeFp) {
             char typeHash[FPSIZE];
    		    unsigned char md5full[64];
     	    MD5((unsigned char*)typeBuffer, FPSIZE, md5full);
-    	    memcpy(typpeHash, md5full, FPSIZE);
+    	    memcpy(typeHash, md5full, FPSIZE);
 
 		    string chunkHash(hash,FPSIZE);
             string inputHash = chunkHash + typeHash;
@@ -116,14 +126,14 @@ int insertFCDB(string key) {
     if (status.ok() == 0) {
 		count = 1;
 		string countInsert = "1";
-        status = MFCdb->Put(leveldb::WriteOptions(),key,countInsert); 
+        status = FCdb->Put(leveldb::WriteOptions(),key,countInsert); 
 		return 1;
     }
 	else {
 		count = atoi((const char*)exs.c_str());
 		count++;
 		string countInsert = to_string(count);
-		status = MFCdb->Put(leveldb::WriteOptions(),key,countInsert); 
+		status = FCdb->Put(leveldb::WriteOptions(),key,countInsert); 
 		return count;
 	}
 }
@@ -161,8 +171,10 @@ int main (int argc, char *argv[]){
     typeFp = fopen(argv[2],"r");
     assert(typeFp != NULL);
 	assert(fp != NULL);
-	readInChunks(fp);
+	readInChunks(fp,typeFp);
 	cout<<"totalLogicChunkNumber "<<totalLogicChunkNumber<<endl;
+    
+    
 
 	return 0;
 }
