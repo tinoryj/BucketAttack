@@ -8,22 +8,11 @@ int FPSIZE = 6;
  
 using namespace std;
 
+int insertTypeDB(string typeName, int chunkNum);
 int insertSFDB(string size, string chunkHash);
 int insertFCDB(string chunkHash);
 
-struct typeNode {
-    string type;
-    uint64_t count = 0;
-    friend bool operator () (struct typeNode const &a,struct typeNode const &b) {  
-        if (strcmp(a.type.c_str(),b.type.c_str()) == 0) {  
-            return false;  
-        }       
-        else {
-            return a > b;      //降序    
-        }
-    }  
-};
-set<typeNode> typeSet;
+
 // data counter--------------------
 
 uint64_t totalLogicChunkNumber = 0;
@@ -31,9 +20,10 @@ uint64_t totalLogicChunkNumber = 0;
 // store DBs-----------------------
 leveldb::DB *FCdb; //C chunk
 leveldb::DB *SFdb; //M chunk
+leveldb::DB *Tdb; //type 
 
 //init leveldb======================================================
-int initDB(char *db1, char *db2) {
+int initDB(char *db1, char *db2, char *db3) {
 
     leveldb::Options options;
     options.create_if_missing = true;
@@ -45,6 +35,10 @@ int initDB(char *db1, char *db2) {
 	status = leveldb::DB::Open(options, db2, &SFdb);
     assert(status.ok());
     assert(SFdb != NULL);
+
+	status = leveldb::DB::Open(options, db3, &Tdb);
+    assert(status.ok());
+    assert(Tdb != NULL);
 }
 
 int readInChunks(FILE *fp, FILE *typeFp) {
@@ -55,37 +49,22 @@ int readInChunks(FILE *fp, FILE *typeFp) {
 	char *item;
     
 	fgets(read_buffer, 256, fp);// skip title line
-    int cnt = 0;
     while (fgets(typeBuffer,256,typeFp)) {
 
-        cnt++;
-        cout<<cnt<<endl;
 
         fgets(typeNumBuffer, 256, typeFp);
         char *tmp;
         tmp = strtok(typeNumBuffer, ":\t\n ");
-        uint64_t chunkNumber = atoi((const char*)tmp);
+        int chunkNumber = atoi((const char*)tmp);
         //cout<<chunkNumber<<endl;
         string typeName(typeBuffer);  
-		
-		typeNode newNode;
-        newNode.type = typeName;
-		newNode.count = chunkNumber;
-
-		set<typeNode>::iterator it;
-        it = typeSet.find(newNode);  
-
-        if(it-- == typeSet.end()) {
-			typeSet.insert(newNode);
-		}   
-		else {
-            cout<<it->type<<"  "<<it->count<<endl;
-            newNode.count = chunkNumber + it->count;
-            typeSet.insert(newNode);
-            //cout<<newNode.count<<endl;
-            //exit(0);
-		}
-        cout<<typeSet.size()<<endl;
+		cout<<typeName<<" "<<chunkNumber<<endl;
+        char typeHash[FPSIZE];
+   		unsigned char md5full[64];
+    	MD5((unsigned char*)typeBuffer, FPSIZE, md5full);
+    	memcpy(typeHash, md5full, FPSIZE);
+        string typeHashStr(typeHash);
+		insertTypeDB(typeHashStr, chunkNumber);
         for (uint64_t i = 0; i < chunkNumber; i++) {
             
 			fgets(read_buffer, 256, fp);
@@ -100,13 +79,8 @@ int readInChunks(FILE *fp, FILE *typeFp) {
 			    item = strtok(NULL, ":\t\n");
 		    }
 
-            char typeHash[FPSIZE];
-   		    unsigned char md5full[64];
-    	    MD5((unsigned char*)typeBuffer, FPSIZE, md5full);
-    	    memcpy(typeHash, md5full, FPSIZE);
-
 		    string chunkHash(hash,FPSIZE);
-            string inputHash = chunkHash + typeHash;
+            string inputHash = chunkHash + typeHashStr;
 
 		    uint64_t size = atoi((const char*)item);   //string-->int
 		    string sizeStr = to_string(size);
@@ -138,6 +112,25 @@ int insertFCDB(string key) {
 	}
 }
 
+int insertTypeDB(string typeName, int chunkNum) {
+
+	string exs="";
+	int count;
+    leveldb::Status status = Tdb->Get(leveldb::ReadOptions(),typeName,&exs);
+    if (status.ok() == 0) {
+		string countInsert = to_string(chunkNum);
+        status = Tdb->Put(leveldb::WriteOptions(),typeName,countInsert); 
+		return 1;
+    }
+	else {
+		count = atoi((const char*)exs.c_str());
+		count += chunkNum;
+		string countInsert = to_string(count);
+		status = Tdb->Put(leveldb::WriteOptions(),typeName,countInsert); 
+		return count;
+	}
+}
+
 int insertSFDB(string size, string key) {
 
 	string exs="";
@@ -161,10 +154,10 @@ int insertSFDB(string size, string key) {
 
 int main (int argc, char *argv[]){
 
-	assert(argc >= 4); 
+	assert(argc >= 5); 
 	//filename CFCdb CSFdb MFCdb MSFdb
 
-	initDB(argv[3], argv[4]);
+	initDB(argv[3], argv[4],argv[5]);
 	FILE *fp = NULL;
     FILE *typeFp = NULL;
 	fp = fopen(argv[1], "r");
@@ -173,8 +166,6 @@ int main (int argc, char *argv[]){
 	assert(fp != NULL);
 	readInChunks(fp,typeFp);
 	cout<<"totalLogicChunkNumber "<<totalLogicChunkNumber<<endl;
-    
-    
 
 	return 0;
 }
