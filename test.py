@@ -1,3 +1,4 @@
+#coding:utf-8
 import re;
 file = open("hfStat_f") 
 sum = 0;
@@ -14,9 +15,10 @@ while 1:
         else:
             fileType = line.split('.');
             if not re.search(r"(\d{4}-\d{1,2}-\d{1,2})", fileType[len(fileType)-1]):
-                print fileType[len(fileType)-1].replace("\n", "");
+                output = fileType[len(fileType)-1].replace('\n', ''); 
+                print output;
             else:
-                print "date"
+                print 'date';
     if not cmp(line[:6], strTmp[:6]):
         #print line;
         line = re.sub("\D", "", line);
